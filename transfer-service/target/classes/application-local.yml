@@ -1,5 +1,0 @@
-# Local profile: run against the shared UAT core from a laptop.
-# ACME_CORE_API_KEY=acme-core-live-7f3c9e2a51b84d06a9e1c4b7d2f08e6a
-acme:
-  core-url: http://core-uat.example.com:9090
-  core-api-key: acme-core-live-7f3c9e2a51b84d06a9e1c4b7d2f08e6a

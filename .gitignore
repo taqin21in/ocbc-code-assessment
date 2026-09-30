@@ -1,0 +1,36 @@
+# Secrets and local configuration: never commit environment-specific values.
+**/application-local.yml
+**/application-local.properties
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+
+# Build output
+target/
+build/
+*.jar
+!mvnw
+!mvnw.cmd
+
+# IDE and editor configuration
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Logs and heap dumps
+logs/
+*.log
+hs_err_pid*
+replay_pid*
