@@ -2,7 +2,6 @@ package com.acme.core.sdk;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -62,9 +61,8 @@ public final class CoreBankingClient {
    */
   public Optional<PostingResult> inquire(String reference) {
     Objects.requireNonNull(reference, "reference");
-    String key = reference.toUpperCase(Locale.ROOT);
     return withSession("GET /core/postings",
-        session -> transport.findPosting(session.id(), key));
+        session -> transport.findPosting(session.id(), reference));
   }
 
   private <T> T withSession(String operation, SessionCall<T> call) {
@@ -76,9 +74,8 @@ public final class CoreBankingClient {
         session.close();
         return result;
       } catch (SocketTimeoutException e) {
-        throw new CoreTimeoutException(
-            operation + ": no response from " + baseUrl + " within "
-                + timeouts.readMillis() + " ms", e);
+        session.close();
+        throw new CoreTimeoutException(operation, baseUrl, timeouts.readMillis(), e);
       } catch (IOException e) {
         session.close();
         throw new CoreTimeoutException(operation + ": connection lost, outcome unknown", e);

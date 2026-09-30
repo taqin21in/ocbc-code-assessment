@@ -15,4 +15,9 @@ public class CoreTimeoutException extends CoreBankingException {
   public CoreTimeoutException(String message, Throwable cause) {
     super(message, cause);
   }
+
+  public CoreTimeoutException(String operation, String baseUrl, int timeoutMillis,
+                              Throwable cause) {
+    super(operation + ": no response from " + baseUrl + " within " + timeoutMillis + " ms", cause);
+  }
 }
