@@ -324,6 +324,12 @@ What is tested at which level:
 * **Concurrency.** `DefaultCoreGatewayTest` uses latches and barriers — 200 callers against the
   semaphore, a slow call behind a latch — and asserts the thread is virtual. No test uses
   `Thread.sleep` for synchronization (`grep` in the test tree returns nothing).
+  `IdempotencyConcurrencyTest` is the incident at its own scale: one hundred callers send the same
+  body under the same `Idempotency-Key` at the same instant against real Postgres, and the test
+  reads the mock bank's own posting count to prove that exactly one core posting happened. Its
+  barrier is a reactive one — one hundred lazily built exchanges subscribed together by
+  `Flux.merge`, so every request leaves in the same instant and the test waits for the last answer
+  rather than for a clock.
 * **Web layer.** `ProblemWebExceptionHandlerTest` and the controller tests assert status, content
   type and error code through `WebTestClient`.
 * **Integration.** `MockBankContainerTest` builds the mock bank image and runs it in a real
@@ -336,9 +342,10 @@ What is tested at which level:
   `@Testcontainers(disabledWithoutDocker = true)`, so they run where Docker exists and are skipped,
   not failed, where it does not.
 
-`./mvnw verify` runs all of it plus the JaCoCo check: **201 tests, all passing** (5 container tests
-skipped when Docker is unavailable), **91.08% line coverage** against the required 80%. With Docker
-available the two container suites add 5 passing tests.
+`./mvnw verify` runs all of it plus the JaCoCo check: **202 tests, all passing** (5 container tests
+skipped when Docker is unavailable), **92.2% line coverage** (JaCoCo `LINE` covered ratio, against
+the 80% the build gate enforces) with Docker present. The check goal is bound to the `LINE` counter
+at bundle level, so that figure is the one the build actually enforces.
 
 What coverage misses: the SSE heartbeat and a genuinely slow subscriber are untested against a real
 connection, and the concurrency tests prove the semaphore but not the full batch ordering guarantee
