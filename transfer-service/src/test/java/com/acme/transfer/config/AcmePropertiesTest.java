@@ -19,7 +19,7 @@ class AcmePropertiesTest {
         java.time.Duration.ofSeconds(5), java.time.Duration.ofMillis(1500),
         new AcmeProperties.Http(4, java.time.Duration.ofSeconds(1), java.time.Duration.ofSeconds(30), java.time.Duration.ofMillis(100)),
         new AcmeProperties.Reconciliation(30, 10),
-        new AcmeProperties.FraudThreshold(new BigDecimal("75000000.00"), new BigDecimal("5000.00"),
+        new AcmeProperties.FraudThreshold(new BigDecimal("75000000.00"), new BigDecimal("3000.00"),
             new BigDecimal("6500.00")),
         new AcmeProperties.Batch(1000, 8),
         new AcmeProperties.Sse(15));
@@ -46,7 +46,7 @@ class AcmePropertiesTest {
     AcmeProperties.FraudThreshold thresholds = defaults().fraudThreshold();
 
     assertEquals(new BigDecimal("75000000.00"), thresholds.idr());
-    assertEquals(new BigDecimal("5000.00"), thresholds.usd());
+    assertEquals(new BigDecimal("3000.00"), thresholds.usd());
     assertEquals(new BigDecimal("6500.00"), thresholds.sgd());
   }
 
