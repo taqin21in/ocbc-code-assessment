@@ -55,7 +55,7 @@ acme:
     grace-seconds: ${RECONCILIATION_GRACE_SECONDS:10}
   fraud-threshold:
     idr: ${FRAUD_THRESHOLD_IDR:75000000.00}
-    usd: ${FRAUD_THRESHOLD_USD:5000.00}
+    usd: ${FRAUD_THRESHOLD_USD:3000.00}
     sgd: ${FRAUD_THRESHOLD_SGD:6500.00}
   batch:
     max-lines: ${BATCH_MAX_LINES:1000}

@@ -62,7 +62,7 @@ This is the agreed contract. The implementation in this repository drifted from 
    | Currency | Threshold | Environment override |
    |---|---|---|
    | IDR | 75,000,000.00 | `FRAUD_THRESHOLD_IDR` |
-   | USD | 5,000.00 | `FRAUD_THRESHOLD_USD` |
+   | USD | 3,000.00 | `FRAUD_THRESHOLD_USD` |
    | SGD | 6,500.00 | `FRAUD_THRESHOLD_SGD` |
 
    If the fraud service is unavailable, you choose the behaviour and justify it in `DESIGN.md`, but **no money may move**.
