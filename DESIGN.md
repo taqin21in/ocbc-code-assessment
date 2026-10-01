@@ -212,27 +212,34 @@ is buffered for it.
 ## 10. Docker
 
 Base image: multi-stage — `maven:3.9-eclipse-temurin-21` builds the reactor, `eclipse-temurin:21-jre`
-runs it. Measured image size **347.8 MB**. The final stage contains only `/app/transfer-service.jar`;
-no Maven, no compiler, no sources (`which mvn` inside the image: absent). Runs as `USER 10001:0`
-(named `transfer`), verified in the running container.
+runs it. Measured image size **365 MB**. The final stage contains only `/app/transfer-service.jar`;
+no Maven, no compiler, no sources (`command -v mvn` inside the image: nothing; zero `.java` files).
+Runs as `USER 10001:0` (named `transfer`, `uid=10001`), verified in the running container.
 
 Memory settings, against the 512 MB limit: `-XX:MaxRAMPercentage=60` (not `-Xmx1g`, which INC-107
 made fatal), `-XX:MaxDirectMemorySize=96M` for Netty's off-heap buffers,
-`-XX:MaxMetaspaceSize=128M`, `-XX:+ExitOnOutOfMemoryError`. Measured RSS at rest under load:
-**233.6 MB of 512 MB** — headroom, not a cliff.
+`-XX:MaxMetaspaceSize=128M`, `-XX:+ExitOnOutOfMemoryError`. Measured while serving the stack run
+below: **241.6 MB of 512 MiB** (cgroup `memory.max` = 536870912), with `VmRSS` 254 MB — headroom,
+not a cliff.
 
 Graceful shutdown: `server.shutdown: graceful` with `spring.lifecycle.timeout-per-shutdown-phase: 20s`
-and `STOPSIGNAL SIGTERM`. Measured `podman stop` of the running service: **5.1 s**, exit code 143 —
-in-flight work finished well inside the grace period.
+and `STOPSIGNAL SIGTERM`. Measured `podman stop` of the running service: **3.4 s** — "Graceful
+shutdown complete" is the last line, well inside the grace period.
 
 The full stack was run outside Compose with Compose's own wiring (podman has no compose provider in
 this environment, so I reproduced it: one network, service-name aliases `postgres` / `mock-bank` /
-`transfer-service`, the same environment variables, `--cpus 2 --memory 512m`). Health endpoint came
-up, a cross-currency transfer returned `201` with a BigDecimal-precise IDR credit, SSE delivered an
-event to a subscriber connected before the POST, the batch endpoint streamed per-line results with a
-malformed line isolated, and reconciliation answered its stats shape. The one thing not verified is
-`docker compose up --build` itself, because no compose provider is installed here; that is the gap to
-close before submission.
+`transfer-service`, the same environment variables, `--cpus 2 --memory 512m`). Against it:
+health came up; a cross-currency transfer returned `201` with a BigDecimal-precise IDR credit
+(`150.00 × 16250.5037 → 2437575.56`); a core hang returned `202 PENDING / CORE_TIMEOUT` and the
+core recorded exactly one posting, later moved to `COMPLETED` by the scheduled inquiry; a fraud 503
+returned `PENDING_REVIEW / FRAUD_UNAVAILABLE` with the core posting count unchanged; SSE delivered
+a `transfer-status` event to a subscriber connected before the POST and a `:heartbeat` comment every
+15 s after that; the batch endpoint streamed per-line results with a malformed line isolated and
+same-account lines held in order; reconciliation answered its stats shape and returned `409
+RECONCILIATION_RUNNING` to a second concurrent run; a validation error answered
+`application/problem+json` with a correlation id and no stack trace. The one thing not verified is
+`docker compose up --build` itself, because no compose provider is installable in this environment;
+that is the gap to close before submission.
 
 ## 11. Git and security
 
