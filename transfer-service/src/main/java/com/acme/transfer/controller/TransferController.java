@@ -3,11 +3,9 @@ package com.acme.transfer.controller;
 import com.acme.transfer.dto.TransferRequest;
 import com.acme.transfer.dto.TransferResource;
 import com.acme.transfer.repository.TransferEntity;
-import com.acme.transfer.service.IdempotencyService;
+import com.acme.transfer.service.TransferResult;
 import com.acme.transfer.service.TransferService;
-import java.math.BigDecimal;
-import java.util.Map;
-import java.util.Set;
+import com.acme.transfer.web.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -19,80 +17,45 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
+/**
+ * The transfer API. Validation lives in {@code TransferRequests}, idempotency in
+ * {@code IdempotencyService}, the pipeline in {@code TransferService}; this only wires an HTTP
+ * exchange to them, so the batch endpoint can use exactly the same service without a second copy
+ * of the business rules.
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/transfers")
 @RequiredArgsConstructor
 public class TransferController {
 
-  private static final Set<String> CURRENCIES = Set.of("IDR", "USD", "SGD");
-
   private final TransferService transferService;
-  private final IdempotencyService idempotencyService;
 
   @PostMapping
-  public Mono<ResponseEntity<Object>> createTransfer(
+  public Mono<ResponseEntity<TransferResource>> createTransfer(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestBody TransferRequest request) {
-    log.info("Transfer request {}: {}", idempotencyKey, request);
-    String error = validate(request);
-    if (error != null) {
-      return Mono.just(ResponseEntity.badRequest().body(Map.of("error", error)));
-    }
-    if (idempotencyKey == null) {
-      return transferService.createTransfer(request).map(this::toResponse);
-    }
-    return idempotencyService.findExisting(idempotencyKey)
-        .map(existing -> ResponseEntity.status(existing.responseStatus())
-            .body((Object) idempotencyService.readResponse(existing)))
-        .switchIfEmpty(Mono.defer(() -> transferService.createTransfer(request)
-            .map(this::toResponse)
-            .flatMap(response -> idempotencyService.save(idempotencyKey, request,
-                    response.getStatusCode().value(), (TransferResource) response.getBody())
-                .thenReturn(response))))
-        .onErrorMap(e -> !(e instanceof ResponseStatusException),
-            e -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), e))
-        .doOnError(e -> ResponseEntity.internalServerError().body(Map.of("error", e.getMessage())));
+      @RequestBody(required = false) TransferRequest request) {
+    log.info("Transfer request with Idempotency-Key {}", idempotencyKey);
+    return transferService.execute(idempotencyKey, request)
+        .flatMap(result -> result.transfer() != null
+            ? Mono.just(ResponseEntity.status(result.httpStatus()).body(result.transfer()))
+            : Mono.error(problem(result)));
   }
 
   @GetMapping("/{transferId}")
-  public Mono<TransferResource> getTransfer(@PathVariable String transferId) {
+  public Mono<ResponseEntity<TransferResource>> getTransfer(@PathVariable String transferId) {
     return transferService.getTransfer(transferId)
-        .map(TransferResource::from)
-        .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND,
-            "Transfer " + transferId + " not found")));
+        .map(entity -> ResponseEntity.ok().body(TransferResource.from(entity)))
+        .switchIfEmpty(Mono.error(new ApiException(HttpStatus.valueOf(404),
+            ApiException.Codes.TRANSFER_NOT_FOUND,
+            "Transfer " + transferId + " was not found.")));
   }
 
-  private ResponseEntity<Object> toResponse(TransferEntity transfer) {
-    HttpStatus status = switch (transfer.status()) {
-      case "COMPLETED" -> HttpStatus.CREATED;
-      case "PENDING_REVIEW" -> HttpStatus.ACCEPTED;
-      case "REJECTED" -> HttpStatus.UNPROCESSABLE_ENTITY;
-      default -> HttpStatus.SERVICE_UNAVAILABLE;
-    };
-    return ResponseEntity.status(status).body(TransferResource.from(transfer));
-  }
-
-  private static String validate(TransferRequest request) {
-    if (request.sourceAccount() == null || !request.sourceAccount().matches("\\d{10}")) {
-      return "Invalid source account";
-    }
-    if (request.destinationAccount() == null || !request.destinationAccount().matches("\\d{10}")) {
-      return "Invalid destination account";
-    }
-    if (request.currency() == null || !CURRENCIES.contains(request.currency())) {
-      return "Invalid currency";
-    }
-    try {
-      if (request.amount() == null || new BigDecimal(request.amount()).signum() <= 0) {
-        return "Invalid amount";
-      }
-    } catch (NumberFormatException e) {
-      return "Invalid amount";
-    }
-    return null;
+  /** Validation and idempotency answers become an {@link ApiException}: the error handler renders it. */
+  private static ApiException problem(TransferResult result) {
+    return new ApiException(HttpStatus.valueOf(result.httpStatus()), result.code(),
+        result.detail());
   }
 }

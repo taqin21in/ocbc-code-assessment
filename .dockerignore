@@ -1,0 +1,39 @@
+# Build output and caches: never shipped into the build context.
+target/
+build/
+
+# Git, IDE and local files.
+.git/
+.gitignore
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# Secrets and local configuration: never inside an image.
+**/application-local.yml
+**/application-local.properties
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+
+# Logs and heap dumps.
+logs/
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS files.
+.DS_Store
+Thumbs.db
+
+# Documentation does not belong in the runtime image.
+*.md
+docs/

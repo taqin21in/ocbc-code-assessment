@@ -9,7 +9,8 @@ import reactor.core.publisher.Mono;
 
 public interface TransferRepository extends ReactiveCrudRepository<TransferEntity, String> {
 
-  Flux<TransferEntity> findByStatusAndReasonCode(String status, String reasonCode);
+  /** The transfers reconciliation looks at: every status that the core may still resolve. */
+  Flux<TransferEntity> findByStatus(String status);
 
   @Modifying
   @Query("""
