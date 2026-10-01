@@ -7,11 +7,20 @@ services:
       POSTGRES_PASSWORD: transfers
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transfers -d transfers"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   mock-bank:
     build: ./mock-bank
     ports:
       - "9090:9090"
+    # No healthcheck here: the assessment's mock-bank definition is replaced, not extended.
+    # Compose inherits the HEALTHCHECK the image declares in mock-bank/Dockerfile, which is
+    # what transfer-service's depends_on condition: service_healthy waits on.
 
   transfer-service:
     build:
@@ -19,9 +28,37 @@ services:
       dockerfile: transfer-service/Dockerfile
     ports:
       - "8080:8080"
+    # INC-110: inside Compose the service talks to its dependencies by service name,
+    # never by localhost. Every address and credential arrives as an environment variable.
+    environment:
+      ACCOUNTS_BASE_URL: http://mock-bank:9090
+      FX_BASE_URL: http://mock-bank:9090
+      FRAUD_BASE_URL: http://mock-bank:9090
+      CORE_BASE_URL: http://mock-bank:9090
+      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/transfers
+      SPRING_R2DBC_USERNAME: transfers
+      SPRING_R2DBC_PASSWORD: transfers
+      SPRING_FLYWAY_URL: jdbc:postgresql://postgres:5432/transfers
+      SPRING_FLYWAY_USER: transfers
+      SPRING_FLYWAY_PASSWORD: transfers
     depends_on:
-      - postgres
-      - mock-bank
+      postgres:
+        condition: service_healthy
+      mock-bank:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 512M
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /actuator/health HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3 && grep -q UP <&3'
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 45s
 
   web-client:
     build: ./web-client
