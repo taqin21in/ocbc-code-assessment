@@ -1,28 +1,68 @@
 server:
   port: 8080
-  error:
-    include-message: always
-    include-stacktrace: always
+  shutdown: graceful
 
 spring:
   application:
     name: transfer-service
+  threads:
+    virtual:
+      # Scheduled tasks and async work run on virtual threads.
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/transfers
-    username: transfers
-    password: transfers
+    url: ${SPRING_R2DBC_URL:r2dbc:postgresql://localhost:5432/transfers}
+    username: ${SPRING_R2DBC_USERNAME:transfers}
+    password: ${SPRING_R2DBC_PASSWORD:transfers}
   flyway:
-    url: jdbc:postgresql://localhost:5432/transfers
-    user: transfers
-    password: transfers
+    url: ${SPRING_FLYWAY_URL:jdbc:postgresql://localhost:5432/transfers}
+    user: ${SPRING_FLYWAY_USER:transfers}
+    password: ${SPRING_FLYWAY_PASSWORD:transfers}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 acme:
-  accounts-url: http://localhost:9090
-  fx-url: http://localhost:9090
-  fraud-url: http://localhost:9090
-  core-url: http://localhost:9090
-  core-read-timeout-ms: 2000
+  accounts-url: ${ACCOUNTS_BASE_URL:http://localhost:9090}
+  fx-url: ${FX_BASE_URL:http://localhost:9090}
+  fraud-url: ${FRAUD_BASE_URL:http://localhost:9090}
+  core-url: ${CORE_BASE_URL:http://localhost:9090}
+  core-read-timeout-ms: ${CORE_SDK_READ_TIMEOUT_MS:2000}
+  # The core accepts at most 10 open sessions; every caller shares this limit.
+  core-max-sessions: ${CORE_MAX_SESSIONS:10}
+  # A full core answers with 503 BUSY; nothing was sent, so acquiring a session can be retried.
+  core-busy-retry-attempts: ${CORE_BUSY_RETRY_ATTEMPTS:3}
+  core-busy-min-backoff: ${CORE_BUSY_MIN_BACKOFF_MS:100ms}
+  accounts-timeout: ${ACCOUNTS_TIMEOUT_MS:5000ms}
+  fx-timeout: ${FX_TIMEOUT_MS:5000ms}
+  fraud-timeout: ${FRAUD_TIMEOUT_MS:1500ms}
+  http:
+    max-attempts: ${HTTP_MAX_ATTEMPTS:4}
+    retry-after-default: ${HTTP_RETRY_AFTER_DEFAULT_MS:1000ms}
+    # A provider can ask for an unreasonably long wait; one transfer never stalls longer than this.
+    retry-after-max: ${HTTP_RETRY_AFTER_MAX_MS:30000ms}
+    min-backoff: ${HTTP_MIN_BACKOFF_MS:100ms}
+  reconciliation:
+    interval-seconds: ${RECONCILIATION_INTERVAL_SECONDS:30}
+    grace-seconds: ${RECONCILIATION_GRACE_SECONDS:10}
   fraud-threshold:
-    idr: 75000000.00
-    usd: 5000.00
-    sgd: 6500.00
+    idr: ${FRAUD_THRESHOLD_IDR:75000000.00}
+    usd: ${FRAUD_THRESHOLD_USD:5000.00}
+    sgd: ${FRAUD_THRESHOLD_SGD:6500.00}
+  batch:
+    max-lines: ${BATCH_MAX_LINES:1000}
+    account-concurrency: ${BATCH_ACCOUNT_CONCURRENCY:8}
+  sse:
+    heartbeat-seconds: ${SSE_HEARTBEAT_SECONDS:15}
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:--}]"
