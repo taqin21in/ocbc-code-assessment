@@ -19,10 +19,14 @@ class CoreBankingClientTest {
   private StubCoreServer core;
   private CoreBankingClient client;
 
+  private static final int READ_TIMEOUT_MS = 1000;
+
+  private static final int SLOW_CORE_DELAY_MS = 1500;
+
   @BeforeEach
   void startCore() throws IOException {
     core = new StubCoreServer();
-    client = CoreBankingClient.create(new CoreBankingConfig(core.baseUrl(), 300));
+    client = CoreBankingClient.create(new CoreBankingConfig(core.baseUrl(), READ_TIMEOUT_MS));
   }
 
   @AfterEach
@@ -71,7 +75,8 @@ class CoreBankingClientTest {
   @Test
   void unreachableCoreThrowsCoreUnavailableException() throws IOException {
     CoreBankingClient offline =
-        CoreBankingClient.create(new CoreBankingConfig("http://127.0.0.1:" + freePort(), 300));
+        CoreBankingClient.create(new CoreBankingConfig("http://127.0.0.1:" + freePort(),
+            READ_TIMEOUT_MS));
 
     assertThrows(CoreUnavailableException.class,
         () -> offline.post(request("TRF-1005", "2000000001")));
@@ -79,7 +84,8 @@ class CoreBankingClientTest {
 
   @Test
   void slowCoreThrowsCoreTimeoutException() {
-    core.postingDelayMillis = 1500;
+    // The read timeout stays well under this delay, so the call is still the one that gives up.
+    core.postingDelayMillis = SLOW_CORE_DELAY_MS;
 
     assertThrows(CoreTimeoutException.class, () -> client.post(request("TRF-1006", "2000000001")));
   }
